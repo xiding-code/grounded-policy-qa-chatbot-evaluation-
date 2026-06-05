@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grounded Policy QA — Amazon Returns</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+          },
+          colors: {
+            ink: {
+              950: '#07090d',
+              900: '#0b0e14',
+              850: '#0f131a',
+              800: '#141923',
+              700: '#1d2230',
+              600: '#272d3d',
+              500: '#3a4256',
+              400: '#5a6378',
+              300: '#8a93a8',
+              200: '#c0c6d4',
+              100: '#e6e9f0',
+            },
+            accent: {
+              500: '#6366f1',
+              600: '#4f46e5',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    html, body { background: #07090d; }
+    body {
+      font-feature-settings: 'cv11', 'ss01';
+      color: #e6e9f0;
+      min-height: 100vh;
+    }
+    .grid-bg {
+      background-image:
+        radial-gradient(circle at 20% 0%, rgba(99,102,241,0.10), transparent 50%),
+        radial-gradient(circle at 80% 30%, rgba(56,189,248,0.06), transparent 55%),
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: auto, auto, 32px 32px, 32px 32px;
+      background-position: 0 0, 0 0, -1px -1px, -1px -1px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(20,25,35,0.85), rgba(15,19,26,0.85));
+      border: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(8px);
+    }
+    @keyframes citePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+      50%      { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+    }
+    .cite-glow {
+      border-color: #6366f1 !important;
+      background: linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.04)) !important;
+      animation: citePulse 2.4s ease-out infinite;
+    }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #0b0e14; }
+    ::-webkit-scrollbar-thumb { background: #1d2230; border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: #272d3d; }
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pill-APPROVE  { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.35);  }
+    .pill-DENY     { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.35);  }
+    .pill-ESCALATE { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.35); }
+    .pill-ABSTAIN  { background: rgba(148,163,184,0.15); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.35); }
+    .src-rerank { background: rgba(139,92,246,0.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.30); }
+    .src-rrf    { background: rgba(14,165,233,0.12); color: #7dd3fc; border: 1px solid rgba(14,165,233,0.30); }
+    .src-bm25   { background: rgba(20,184,166,0.12); color: #5eead4; border: 1px solid rgba(20,184,166,0.30); }
+    .src-dense  { background: rgba(244,114,182,0.12); color: #f9a8d4; border: 1px solid rgba(244,114,182,0.30); }
+    .chunk-id {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      background: rgba(99,102,241,0.10);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.25);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      letter-spacing: 0.02em;
+    }
+    .fade-in { animation: fadeIn 0.35s ease-out both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .memory-badge {
+      background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(99,102,241,0.18));
+      border: 1px solid rgba(139,92,246,0.4);
+      color: #c4b5fd;
+    }
+  </style>
+</head>
+
+<body class="grid-bg">
+  <div x-data="ragApp()" x-init="init()" class="min-h-screen flex flex-col">
+
+    <!-- ===== Header ===== -->
+    <header class="border-b border-white/5 backdrop-blur-md bg-ink-900/60 sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-accent-600/20">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+          </div>
+          <div>
+            <h1 class="text-[15px] font-semibold tracking-tight text-ink-100">Grounded Policy QA</h1>
+            <p class="text-[12px] text-ink-300 font-medium">Amazon Returns &amp; Refunds</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-mono bg-ink-800/70 border border-white/5 text-ink-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span x-text="providerLabel"></span>
+          </span>
+          <span class="hidden sm:inline-flex items-center px-2.5 py-1 rounded-md text-[10.5px] font-mono uppercase tracking-wider bg-accent-600/15 text-accent-500 border border-accent-600/30">
+            v2 · hybrid + rerank · multi-turn
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== Main ===== -->
+    <main class="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+        <!-- ===== Left: Conversation ===== -->
+        <section class="lg:col-span-3 space-y-5">
+
+          <!-- Input card -->
+          <div class="card rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-[11px] uppercase tracking-wider text-ink-300 font-semibold">Ask a policy question</label>
+              <div class="flex items-center gap-3">
+                <template x-if="turns.length > 0">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10.5px] font-semibold uppercase tracking-wider memory-badge">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                    <span x-text="`${turns.length} turn${turns.length === 1 ? '' : 's'} · memory on`"></span>
+                  </span>
+                </template>
+                <button
+                  @click="resetSession()"
+                  :disabled="loading || turns.length === 0"
+                  class="text-[11px] text-ink-300 hover:text-ink-100 disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="m3 3 0 6 6 0"/></svg>
+                  New conversation
+                </button>
+              </div>
+            </div>
+            <textarea
+              x-model="question"
+              x-ref="input"
+              @keydown.enter.prevent="(!$event.shiftKey) && submit()"
+              rows="3"
+              placeholder="e.g. How long do I have to return an item to Amazon?"
+              class="w-full bg-ink-950/60 border border-white/5 rounded-lg p-3 text-[14px] text-ink-100 placeholder:text-ink-400 focus:outline-none focus:border-accent-500/60 focus:ring-1 focus:ring-accent-500/40 resize-none transition"></textarea>
+
+            <div class="flex items-center justify-between mt-3">
+              <div class="text-[11px] text-ink-400 font-mono">
+                <span class="opacity-70">Enter</span> submit · <span class="opacity-70">Shift+Enter</span> newline
+              </div>
+              <button
+                @click="submit()"
+                :disabled="loading || !question.trim()"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-600 hover:bg-accent-500 disabled:bg-ink-700 disabled:text-ink-400 disabled:cursor-not-allowed text-white text-[13px] font-medium transition shadow-lg shadow-accent-600/20">
+                <template x-if="loading"><div class="spinner"></div></template>
+                <template x-if="!loading">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 5 7 7-7 7"/></svg>
+                </template>
+                <span x-text="loading ? 'Working…' : 'Submit'"></span>
+              </button>
+            </div>
+
+            <!-- Sample questions -->
+            <div class="mt-4 pt-4 border-t border-white/5">
+              <div class="text-[10.5px] uppercase tracking-wider text-ink-400 font-semibold mb-2">
+                <template x-if="turns.length === 0">
+                  <span>Try a sample</span>
+                </template>
+                <template x-if="turns.length > 0">
+                  <span>Try a follow-up (memory will retain context)</span>
+                </template>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <template x-for="(s, i) in (turns.length === 0 ? samples : followups)" :key="i">
+                  <button
+                    @click="question = s; submit()"
+                    :disabled="loading"
+                    class="text-[12px] text-ink-200 bg-ink-800/60 hover:bg-ink-700/80 hover:text-white border border-white/5 hover:border-accent-500/40 rounded-full px-3 py-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    x-text="s"></button>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Loading -->
+          <template x-if="loading">
+            <div class="card rounded-xl p-5 fade-in">
+              <div class="flex items-center gap-3">
+                <div class="spinner"></div>
+                <div class="text-[13px] text-ink-200 font-medium" x-text="loadingMessage"></div>
+              </div>
+              <div class="mt-3 h-1 bg-ink-800 rounded overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-accent-500 via-cyan-400 to-accent-500 animate-pulse" style="width: 65%"></div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Error -->
+          <template x-if="error">
+            <div class="card rounded-xl p-5 fade-in border-red-500/40">
+              <div class="text-[12px] uppercase tracking-wider text-red-400 font-semibold mb-1">Error</div>
+              <div class="text-[13px] text-ink-100 font-mono whitespace-pre-wrap" x-text="error"></div>
+            </div>
+          </template>
+
+          <!-- Conversation thread -->
+          <template x-for="(turn, ti) in turns" :key="turn.turn_id">
+            <div class="space-y-3 fade-in">
+
+              <!-- Question -->
+              <div class="flex items-start gap-3">
+                <div class="w-7 h-7 rounded-full bg-ink-700 flex items-center justify-center flex-shrink-0 text-[11px] font-semibold text-ink-200">
+                  Q<span x-text="ti + 1"></span>
+                </div>
+                <div class="flex-1 text-[14px] text-ink-100 leading-relaxed pt-1" x-text="turn.question"></div>
+              </div>
+
+              <!-- Decision -->
+              <div class="card rounded-xl p-5 cursor-pointer hover:border-accent-500/30"
+                   :class="ti === activeTurnIdx ? 'ring-1 ring-accent-500/40 border-accent-500/30' : ''"
+                   @click="activeTurnIdx = ti">
+                <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11.5px] font-bold tracking-wider uppercase"
+                      :class="`pill-${turn.decision.decision}`">
+                      <span class="w-1.5 h-1.5 rounded-full" :style="`background: currentColor`"></span>
+                      <span x-text="turn.decision.decision"></span>
+                    </span>
+                    <template x-if="turn.decision.guarded">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10.5px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/35">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Safety guard triggered
+                      </span>
+                    </template>
+                    <template x-if="turn.n_prior_turns > 0">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider memory-badge">
+                        <span x-text="`+${turn.n_prior_turns} prior turn${turn.n_prior_turns === 1 ? '' : 's'} in context`"></span>
+                      </span>
+                    </template>
+                    <template x-if="turn.self_rag && turn.self_rag.route === 'SKIP'">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-cyan-500/15 text-cyan-300 border border-cyan-500/35">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+                        Self-RAG: skipped retrieval
+                      </span>
+                    </template>
+                    <template x-if="turn.crag && turn.crag.quality === 'HIGH'">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/12 text-emerald-300 border border-emerald-500/30">
+                        CRAG: high
+                      </span>
+                    </template>
+                    <template x-if="turn.crag && turn.crag.quality === 'LOW'">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/35">
+                        CRAG: low<template x-if="turn.crag.fallback_count > 0"><span class="ml-1" x-text="`· +${turn.crag.fallback_count} web fallback`"></span></template>
+                      </span>
+                    </template>
+                    <template x-if="turn.summary && turn.summary.n_compressed_turns > 0">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/35">
+                        L2: <span x-text="`${turn.summary.n_compressed_turns} turns summarized`"></span>
+                      </span>
+                    </template>
+                  </div>
+                  <div class="text-[11px] font-mono text-ink-400" x-show="turn.latency_ms">
+                    <span x-text="`${turn.latency_ms} ms`"></span>
+                  </div>
+                </div>
+
+                <template x-if="turn.entities && turn.entities.any_set">
+                  <div class="mb-3 p-2.5 rounded-lg bg-ink-950/40 border border-purple-500/20">
+                    <div class="flex items-center gap-1 mb-1.5">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                      <span class="text-[10px] uppercase tracking-wider text-purple-300/90 font-semibold">L3 tracked entities</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                      <template x-if="turn.entities.order_id">
+                        <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-200 border border-purple-500/30">
+                          order: <span x-text="turn.entities.order_id"></span>
+                        </span>
+                      </template>
+                      <template x-if="turn.entities.product">
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-200 border border-purple-500/30">
+                          product: <span x-text="turn.entities.product"></span>
+                        </span>
+                      </template>
+                      <template x-if="turn.entities.return_reason">
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-200 border border-purple-500/30">
+                          reason: <span x-text="turn.entities.return_reason"></span>
+                        </span>
+                      </template>
+                      <template x-if="turn.entities.intent">
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-200 border border-purple-500/30">
+                          intent: <span x-text="turn.entities.intent"></span>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+                <p class="text-[16px] leading-[1.55] text-ink-100 font-medium mb-4" x-text="turn.decision.answer"></p>
+
+                <template x-if="turn.decision.required_info && turn.decision.required_info.toUpperCase() !== 'NONE'">
+                  <div class="mb-4 p-3 rounded-lg bg-ink-950/50 border border-white/5">
+                    <div class="text-[10.5px] uppercase tracking-wider text-amber-300/90 font-semibold mb-1">Required Info</div>
+                    <div class="text-[13px] text-ink-200" x-text="turn.decision.required_info"></div>
+                  </div>
+                </template>
+
+                <template x-if="getCitedIds(turn).length > 0">
+                  <div class="pt-3 border-t border-white/5">
+                    <div class="text-[10.5px] uppercase tracking-wider text-ink-400 font-semibold mb-2">Citations</div>
+                    <div class="flex flex-wrap gap-1.5">
+                      <template x-for="cid in getCitedIds(turn)" :key="cid">
+                        <span class="chunk-id cursor-pointer hover:bg-accent-600/25 transition"
+                              @click.stop="activeTurnIdx = ti; scrollToChunk(cid)"
+                              @mouseenter.stop="highlightedId = cid; activeTurnIdx = ti"
+                              @mouseleave.stop="highlightedId = null"
+                              x-text="cid"></span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Empty state -->
+          <template x-if="turns.length === 0 && !loading && !error">
+            <div class="card rounded-xl p-8 text-center">
+              <div class="w-12 h-12 mx-auto mb-3 rounded-lg bg-ink-800 flex items-center justify-center">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="text-[14px] text-ink-200 font-medium">Ask a returns or refunds policy question</div>
+              <div class="text-[12px] text-ink-400 mt-1">Multi-turn memory active. Follow-ups retain context.</div>
+            </div>
+          </template>
+        </section>
+
+        <!-- ===== Right: Evidence (for active turn) ===== -->
+        <aside class="lg:col-span-2">
+          <div class="card rounded-xl p-5 lg:sticky lg:top-24">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-[13px] font-semibold text-ink-100 tracking-tight">Evidence</h2>
+                <p class="text-[11px] text-ink-400 mt-0.5">
+                  <template x-if="activeTurn">
+                    <span>Audit trail for turn <span x-text="activeTurnIdx + 1"></span></span>
+                  </template>
+                  <template x-if="!activeTurn">
+                    <span>Retrieved policy chunks</span>
+                  </template>
+                </p>
+              </div>
+              <span class="text-[11px] font-mono text-ink-400" x-show="activeTurn"
+                    x-text="`top ${activeTurn?.evidence?.length || 0}`"></span>
+            </div>
+
+            <template x-if="!activeTurn">
+              <div class="text-[12.5px] text-ink-400 py-8 text-center border border-dashed border-white/5 rounded-lg">
+                Evidence chunks appear here after a query.
+              </div>
+            </template>
+
+            <template x-if="activeTurn">
+              <div class="space-y-3 max-h-[68vh] overflow-y-auto pr-1">
+                <template x-for="(ev, idx) in activeTurn.evidence" :key="ev.chunk_id">
+                  <div
+                    :id="`chunk-${ev.chunk_id}`"
+                    class="rounded-lg p-3 border border-white/5 bg-ink-950/40 transition fade-in"
+                    :class="(getCitedIds(activeTurn).includes(ev.chunk_id) || highlightedId === ev.chunk_id) ? 'cite-glow' : ''">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="text-[10.5px] font-mono text-ink-400 flex-shrink-0">#<span x-text="idx + 1"></span></span>
+                        <span class="chunk-id truncate" x-text="ev.chunk_id"></span>
+                      </div>
+                      <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <span class="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded"
+                              :class="`src-${ev.source}`"
+                              x-text="ev.source"></span>
+                        <span class="text-[10.5px] font-mono text-ink-300" x-text="ev.score.toFixed(3)"></span>
+                      </div>
+                    </div>
+                    <div class="text-[12px] font-medium text-ink-200 mb-1 line-clamp-1" x-text="ev.title"></div>
+                    <div class="text-[12px] text-ink-300 leading-relaxed" x-text="ev.text_preview"></div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </aside>
+
+      </div>
+    </main>
+
+    <!-- ===== Footer ===== -->
+    <footer class="border-t border-white/5 mt-8">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div class="text-[11px] font-mono text-ink-400">
+          <span class="text-ink-300">Pipeline:</span>
+          <span class="text-cyan-300">Self-RAG router</span>
+          <span class="text-ink-500 mx-1">→</span>
+          BM25 + FAISS via RRF
+          <span class="text-ink-500 mx-1">→</span>
+          Cross-Encoder Rerank
+          <span class="text-ink-500 mx-1">→</span>
+          <span class="text-orange-300">CRAG judge + web fallback</span>
+          <span class="text-ink-500 mx-1">→</span>
+          Claude
+          <span class="text-ink-500 mx-1">·</span>
+          <span class="text-purple-300">L1+L2 memory + L3 entities</span>
+        </div>
+        <div class="text-[11px] text-ink-400">
+          Cited · Safety-guarded · Multi-turn · Built for SA Cyber
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    function ragApp() {
+      return {
+        question: '',
+        loading: false,
+        error: null,
+        turns: [],                    // array of result dicts (each = one turn)
+        activeTurnIdx: 0,             // which turn's evidence is shown on right panel
+        sessionId: null,
+        highlightedId: null,
+        providerLabel: 'loading…',
+        loadingMessage: 'Retrieving…',
+        _loadingTimer: null,
+        samples: [
+          'How long do I have to return an item to Amazon?',
+          'Do I have to pay return shipping?',
+          'I bought from a third-party seller, can I return to Amazon directly?',
+          'My refund hasn\'t shown up on my credit card. What is going on?',
+        ],
+        followups: [
+          'What about the shipping cost for it?',
+          'And how long do I have to start the return?',
+          'Does that apply to international orders too?',
+          'What if the item arrived damaged?',
+        ],
+
+        get activeTurn() {
+          if (this.turns.length === 0) return null;
+          const i = Math.max(0, Math.min(this.activeTurnIdx, this.turns.length - 1));
+          return this.turns[i];
+        },
+
+        getCitedIds(turn) {
+          if (!turn) return [];
+          const c = turn.decision.citations || '';
+          if (!c || c.toUpperCase() === 'NONE') return [];
+          return c
+            .split(/[,\s]+/)
+            .map(s => s.trim().replace(/^\[|\]$/g, ''))
+            .filter(Boolean);
+        },
+
+        async init() {
+          // Persist session_id across reloads so multi-turn survives F5
+          this.sessionId = localStorage.getItem('sa_cyber_session_id');
+          if (!this.sessionId) {
+            this.sessionId = this.newSessionId();
+            localStorage.setItem('sa_cyber_session_id', this.sessionId);
+          }
+          try {
+            const r = await fetch('/api/health');
+            const j = await r.json();
+            this.providerLabel = j.provider || 'unknown';
+          } catch (e) {
+            this.providerLabel = 'offline';
+          }
+          this.$refs.input.focus();
+        },
+
+        newSessionId() {
+          // crypto.randomUUID is widely supported; fallback to timestamp
+          return (crypto.randomUUID?.() || `s_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+        },
+
+        startLoadingCycle() {
+          const stages = [
+            'Retrieving candidates (BM25 + FAISS)…',
+            'Fusing ranks (RRF)…',
+            'Reranking with cross-encoder…',
+            this.turns.length > 0 ? 'Generating cited decision (using prior turns)…' : 'Generating cited decision…',
+          ];
+          let i = 0;
+          this.loadingMessage = stages[0];
+          this._loadingTimer = setInterval(() => {
+            i = (i + 1) % stages.length;
+            this.loadingMessage = stages[i];
+          }, 900);
+        },
+
+        stopLoadingCycle() {
+          if (this._loadingTimer) {
+            clearInterval(this._loadingTimer);
+            this._loadingTimer = null;
+          }
+        },
+
+        async submit() {
+          const q = (this.question || '').trim();
+          if (!q || this.loading) return;
+          this.loading = true;
+          this.error = null;
+          this.highlightedId = null;
+          this.startLoadingCycle();
+          try {
+            const r = await fetch('/api/ask', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({question: q, session_id: this.sessionId}),
+            });
+            if (!r.ok) {
+              const text = await r.text();
+              throw new Error(`HTTP ${r.status}: ${text}`);
+            }
+            const result = await r.json();
+            result.turn_id = `t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+            this.turns.push(result);
+            this.activeTurnIdx = this.turns.length - 1;
+            this.question = '';
+            this.$nextTick(() => this.$refs.input?.focus());
+          } catch (e) {
+            this.error = e.message || String(e);
+          } finally {
+            this.stopLoadingCycle();
+            this.loading = false;
+          }
+        },
+
+        async resetSession() {
+          if (this.loading) return;
+          try {
+            await fetch('/api/reset', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({session_id: this.sessionId}),
+            });
+          } catch (e) {
+            // server may be transient; clear UI regardless
+          }
+          this.turns = [];
+          this.activeTurnIdx = 0;
+          this.highlightedId = null;
+          this.sessionId = this.newSessionId();
+          localStorage.setItem('sa_cyber_session_id', this.sessionId);
+        },
+
+        scrollToChunk(cid) {
+          const el = document.getElementById(`chunk-${cid}`);
+          if (el) {
+            el.scrollIntoView({behavior: 'smooth', block: 'center'});
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

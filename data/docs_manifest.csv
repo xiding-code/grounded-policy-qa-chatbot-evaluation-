@@ -1,0 +1,7 @@
+doc_id,title,url,raw_path,raw_bytes,text_path,text_chars
+A1,Return Items You Ordered,https://www.amazon.com/gp/help/customer/display.html?nodeId=G6E3B2E8QPHQ88KF,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A1.html,328028,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A1.txt,5528
+A3,Returns to Third-Party Sellers,https://www.amazon.com/gp/help/customer/display.html?nodeId=G38BHJQ25PNCLUBU,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A3.html,331709,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A3.txt,6040
+A4,Amazon Return Policy,https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A4.html,357115,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A4.txt,14584
+A6,Track Your Return,https://www.amazon.com/gp/help/customer/display.html?nodeId=GNF2KMBB2JD4VXV8,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A6.html,333451,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A6.txt,4281
+A7,Return Shipping Cost,https://www.amazon.com/gp/help/customer/display.html?nodeId=GFLBEJCLHMVFEPA8,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A7.html,322725,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A7.txt,3761
+A9,International Returns,https://www.amazon.com/gp/help/customer/display.html?nodeId=GP8L6BMXBTJHKUJW,/sessions/keen-lucid-cannon/amazon_rag_v2/data/raw/A9.html,330994,/sessions/keen-lucid-cannon/amazon_rag_v2/data/text/A9.txt,5308

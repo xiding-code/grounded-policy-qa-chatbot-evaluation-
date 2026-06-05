@@ -1,0 +1,15 @@
+.env
+*.pyc
+__pycache__/
+.DS_Store
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Optionally exclude built indexes from repo (rebuild via scripts)
+data/raw/*.html
+data/index/faiss.index
+data/index/bm25.pkl
+data/chunks.pkl
+data/index/chunks.pkl
